@@ -78,9 +78,9 @@ try {
         CREATE TABLE IF NOT EXISTS clientes (
             id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             nombre      VARCHAR(120) NOT NULL,
-            telefono    VARCHAR(40)  DEFAULT '',
-            direccion   VARCHAR(255) DEFAULT '',
             correo      VARCHAR(150) DEFAULT NULL,
+            celular     VARCHAR(40)  DEFAULT '',
+            direccion   VARCHAR(255) DEFAULT '',
             contrasena  VARCHAR(100) NOT NULL DEFAULT '',
             clave       VARCHAR(100) NOT NULL DEFAULT '',
             lat         DECIMAL(10,7) DEFAULT NULL,
@@ -95,6 +95,17 @@ try {
     $ok = false;
 }
 
+// Migración: telefono → celular + reordenar correo en clientes
+try {
+    $hasTelefono = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'clientes' AND COLUMN_NAME = 'telefono'")->fetchColumn();
+    if ($hasTelefono) {
+        $pdo->exec("ALTER TABLE clientes CHANGE telefono celular VARCHAR(40) DEFAULT '', MODIFY correo VARCHAR(150) DEFAULT NULL AFTER nombre");
+        msg("Migración <b>clientes</b>: telefono → celular", 'ok');
+    }
+} catch (Exception $e) {
+    msg("Error migrando clientes: " . htmlspecialchars($e->getMessage()), 'error');
+}
+
 try {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS pedidos (
@@ -102,7 +113,8 @@ try {
             numero      VARCHAR(20)  NOT NULL UNIQUE,
             cliente_id  INT UNSIGNED DEFAULT NULL,
             cliente     VARCHAR(120) NOT NULL,
-            telefono    VARCHAR(40)  DEFAULT '',
+            correo      VARCHAR(120) DEFAULT NULL,
+            celular     VARCHAR(40)  DEFAULT '',
             direccion   VARCHAR(255) DEFAULT '',
             notas       TEXT,
             total       DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -119,6 +131,22 @@ try {
 } catch (Exception $e) {
     msg("Error creando tabla pedidos: " . htmlspecialchars($e->getMessage()), 'error');
     $ok = false;
+}
+
+// Migración: telefono → celular + agregar correo en pedidos
+try {
+    $hasTelefono = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pedidos' AND COLUMN_NAME = 'telefono'")->fetchColumn();
+    if ($hasTelefono) {
+        $pdo->exec("ALTER TABLE pedidos CHANGE telefono celular VARCHAR(40) DEFAULT ''");
+        msg("Migración <b>pedidos</b>: telefono → celular", 'ok');
+    }
+    $hasCorreo = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pedidos' AND COLUMN_NAME = 'correo'")->fetchColumn();
+    if (!$hasCorreo) {
+        $pdo->exec("ALTER TABLE pedidos ADD COLUMN correo VARCHAR(120) DEFAULT NULL AFTER cliente, MODIFY celular VARCHAR(40) DEFAULT '' AFTER correo");
+        msg("Migración <b>pedidos</b>: columna correo agregada", 'ok');
+    }
+} catch (Exception $e) {
+    msg("Error migrando pedidos: " . htmlspecialchars($e->getMessage()), 'error');
 }
 
 try {
