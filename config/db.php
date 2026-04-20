@@ -6,7 +6,7 @@
 
 define('DB_HOST', 'oxford.databox.net.ar');
 define('DB_PORT', 3306);
-define('DB_NAME', 'lider');
+define('DB_NAME', 'repo');
 define('DB_USER', 'admin');
 define('DB_PASS', 'OVfEqi2GdbD0L1zHNC8M7Z5039I3Zgyd');
 define('DB_CHARSET', 'utf8mb4');

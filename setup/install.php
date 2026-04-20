@@ -236,7 +236,7 @@ try {
         'datarocket_proyecto'    => 'vigicom',
         'datarocket_canal_email' => 'databox',
         'datarocket_canal_wa'    => 'repo-hum',
-        'datarocket_remitente'   => 'Lider Online',
+        'datarocket_remitente'   => 'Repo Online',
         'datarocket_remite'      => '1169391123',
     ];
     $stmtCfg = $pdo->prepare("INSERT IGNORE INTO configuracion (clave, valor) VALUES (?, ?)");
@@ -494,7 +494,7 @@ endif; // $ok
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instalación — Lider DB</title>
+    <title>Instalación — Repo DB</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
@@ -513,7 +513,7 @@ endif; // $ok
         </div>
         <div class="footer">
             <p>Eliminar este archivo después de la instalación por seguridad.</p>
-            <p style="margin-top:8px"><a href="../lider-app/">← Ir a la App</a> &nbsp;|&nbsp; <a href="../lider-admin/">Ir al Admin →</a></p>
+            <p style="margin-top:8px"><a href="../repo-app/">← Ir a la App</a> &nbsp;|&nbsp; <a href="../repo-admin/">Ir al Admin →</a></p>
         </div>
     </div>
 </body>
