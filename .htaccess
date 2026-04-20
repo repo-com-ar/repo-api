@@ -1,0 +1,12 @@
+Options -Indexes
+RewriteEngine On
+
+# Bloquear acceso directo con extensión .php
+RewriteCond %{THE_REQUEST} \.php[\s?/] [NC]
+RewriteRule ^(.+?)\.php(/.*)?$ /$1$2 [R=301,L,NE]
+
+# Servir archivos .php sin extensión
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.+?)$ $1.php [L]

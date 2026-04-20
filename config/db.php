@@ -4,6 +4,9 @@
  * ¡No subir este archivo al repositorio! Agregar a .gitignore
  */
 
+// Zona horaria global: Argentina (GMT-3, sin horario de verano)
+date_default_timezone_set('America/Argentina/Buenos_Aires');
+
 define('DB_HOST', 'oxford.databox.net.ar');
 define('DB_PORT', 3306);
 define('DB_NAME', 'repo');
@@ -23,6 +26,8 @@ function getDB(): PDO {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
         ]);
+        // Forzar zona horaria en la sesión MySQL
+        $pdo->exec("SET time_zone = '-03:00'");
     }
     return $pdo;
 }
