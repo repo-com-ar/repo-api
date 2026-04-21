@@ -503,13 +503,16 @@ try {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS usuarios (
             id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            usuario    VARCHAR(100) NOT NULL,
+            nombre     VARCHAR(100) NOT NULL,
             correo     VARCHAR(255) NOT NULL DEFAULT '',
             celular    VARCHAR(50)  NOT NULL DEFAULT '',
             contrasena VARCHAR(255) NOT NULL DEFAULT '',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
+    try {
+        $pdo->exec("ALTER TABLE usuarios CHANGE usuario nombre VARCHAR(100) NOT NULL");
+    } catch (Exception $e) { /* columna ya renombrada o no existe */ }
     msg("Tabla <b>usuarios</b> creada/verificada", 'ok');
 } catch (Exception $e) {
     msg("Error creando tabla usuarios: " . htmlspecialchars($e->getMessage()), 'error');
