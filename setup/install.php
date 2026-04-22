@@ -583,6 +583,15 @@ try {
     msg("Error creando tabla usuarios: " . htmlspecialchars($e->getMessage()), 'error');
 }
 
+// Migración: repartidor_id en pedidos
+try {
+    $pdo->query("SELECT repartidor_id FROM pedidos LIMIT 1");
+    msg("Columna <b>repartidor_id</b> ya existe en pedidos", 'info');
+} catch (Exception $e) {
+    $pdo->exec("ALTER TABLE pedidos ADD COLUMN repartidor_id INT UNSIGNED DEFAULT NULL AFTER cliente_id");
+    msg("Columna <b>repartidor_id</b> agregada a pedidos", 'ok');
+}
+
 endif; // $ok
 ?>
 <!DOCTYPE html>
