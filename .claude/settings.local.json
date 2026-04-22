@@ -3,7 +3,8 @@
     "allow": [
       "Bash(xargs sed *)",
       "WebFetch(domain:api.databox.net.ar)",
-      "Bash(grep -E \"\\\\.\\(css|json\\)$\")"
+      "Bash(grep -E \"\\\\.\\(css|json\\)$\")",
+      "Bash(sed 's/ .*//')"
     ]
   }
 }

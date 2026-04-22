@@ -126,8 +126,16 @@ try {
 
 // Eliminar trigger obsoleto si aún existe
 try {
-    $pdo->exec("DROP TRIGGER IF EXISTS tr_productos_sku");
-    msg("Trigger <b>tr_productos_sku</b> eliminado (SKU ahora se genera en PHP)", 'info');
+    $triggerExiste = $pdo->query(
+        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TRIGGERS
+         WHERE TRIGGER_SCHEMA = DATABASE() AND TRIGGER_NAME = 'tr_productos_sku'"
+    )->fetchColumn();
+    if ($triggerExiste) {
+        $pdo->exec("DROP TRIGGER tr_productos_sku");
+        msg("Trigger <b>tr_productos_sku</b> eliminado (SKU ahora se genera en PHP)", 'ok');
+    } else {
+        msg("Trigger <b>tr_productos_sku</b> no existe, nada que eliminar", 'info');
+    }
 } catch (Exception $e) {
     msg("Aviso al eliminar trigger tr_productos_sku: " . htmlspecialchars($e->getMessage()), 'warn');
 }
@@ -531,6 +539,28 @@ try {
 } catch (Exception $e) {
     $pdo->exec("ALTER TABLE carritos ADD COLUMN session_id VARCHAR(64) NOT NULL DEFAULT '' AFTER usuario_id");
     msg("Columna <b>session_id</b> agregada a carritos", 'ok');
+}
+
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS repartidores (
+            id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            nombre      VARCHAR(120) NOT NULL,
+            correo      VARCHAR(150) DEFAULT NULL,
+            celular     VARCHAR(40)  DEFAULT '',
+            direccion   VARCHAR(255) DEFAULT '',
+            contrasena  VARCHAR(100) NOT NULL DEFAULT '',
+            clave       VARCHAR(100) NOT NULL DEFAULT '',
+            lat         DECIMAL(10,7) DEFAULT NULL,
+            lng         DECIMAL(10,7) DEFAULT NULL,
+            created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            updated_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    msg("Tabla <b>repartidores</b> creada/verificada", 'ok');
+} catch (Exception $e) {
+    msg("Error creando tabla repartidores: " . htmlspecialchars($e->getMessage()), 'error');
+    $ok = false;
 }
 
 // ── Tabla usuarios (backoffice) ──
