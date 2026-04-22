@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xargs sed *)"
+      "Bash(xargs sed *)",
+      "WebFetch(domain:api.databox.net.ar)"
     ]
   }
 }
