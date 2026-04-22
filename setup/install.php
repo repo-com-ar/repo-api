@@ -440,6 +440,15 @@ if ($ok) {
         msg("Columna <b>stock</b> ya no existe en productos", 'info');
     }
 
+    // proveedor_id en productos
+    try {
+        $pdo->query("SELECT proveedor_id FROM productos LIMIT 1");
+        msg("Columna <b>proveedor_id</b> ya existe en productos", 'info');
+    } catch (Exception $e) {
+        $pdo->exec("ALTER TABLE productos ADD COLUMN proveedor_id INT UNSIGNED DEFAULT NULL AFTER stock_recomendado");
+        msg("Columna <b>proveedor_id</b> agregada a productos", 'ok');
+    }
+
     // correo en clientes
     try {
         $pdo->query("SELECT correo FROM clientes LIMIT 1");
@@ -477,96 +486,6 @@ if ($ok) {
     }
 }
 
-// ── 2. Insertar categorías de ejemplo ────────────────────────────
-if ($ok) {
-    $countCat = $pdo->query("SELECT COUNT(*) FROM categorias")->fetchColumn();
-    if ($countCat > 0) {
-        msg("La tabla categorias ya tiene <b>{$countCat}</b> registros. No se insertarán duplicados.", 'warn');
-    } else {
-        function px($id) {
-            return "https://images.pexels.com/photos/{$id}/pexels-photo-{$id}.jpeg?auto=compress&cs=tinysrgb&w=80&h=80&fit=crop";
-        }
-
-        $cats = [
-            ['frutas',    'Frutas',    '🍎', px(102104),   1],
-            ['verduras',  'Verduras',  '🥕', px(73640),    2],
-            ['lacteos',   'Lácteos',   '🥛', px(12984540), 3],
-            ['carnes',    'Carnes',    '🥩', px(112781),   4],
-            ['fiambres',  'Fiambres',  '🥓', px(4871119),  5],
-            ['panaderia', 'Panadería', '🍞', px(41298),    6],
-            ['bebidas',   'Bebidas',   '🥤', px(31012801), 7],
-            ['almacen',   'Almacén',   '🏪', px(8108170),  8],
-        ];
-
-        $stmtCat = $pdo->prepare("INSERT INTO categorias (id, label, emoji, imagen, orden) VALUES (?, ?, ?, ?, ?)");
-        foreach ($cats as $c) { $stmtCat->execute($c); }
-        msg("Se insertaron <b>" . count($cats) . "</b> categorías", 'ok');
-    }
-}
-
-// ── 3. Insertar productos de ejemplo ─────────────────────────────
-if ($ok) {
-    $count = $pdo->query("SELECT COUNT(*) FROM productos")->fetchColumn();
-    if ($count > 0) {
-        msg("La tabla productos ya tiene <b>{$count}</b> registros. No se insertarán duplicados.", 'warn');
-    } else {
-        function img($id) {
-            return "https://images.pexels.com/photos/{$id}/pexels-photo-{$id}.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop";
-        }
-        function uns($id) {
-            return "https://images.unsplash.com/photo-{$id}?w=400&h=400&fit=crop&auto=format&q=80";
-        }
-
-        $productos = [
-            ['Manzana Roja',      850,  'frutas',    img(102104),              'kg', 1],
-            ['Banana',            620,  'frutas',    uns('A4IIDSz6bTM'),       'kg', 1],
-            ['Naranja Navel',     750,  'frutas',    uns('ZBXPPacUsVs'),       'kg', 1],
-            ['Limón',             480,  'frutas',    uns('enNffryKuQI'),       'kg', 1],
-            ['Pera Williams',     920,  'frutas',    uns('p9tDuQJV244'),       'kg', 0],
-            ['Frutilla',          1200, 'frutas',    uns('THRRhA1ZGMk'),       'kg', 1],
-            ['Tomate Perita',     690,  'verduras',  uns('aQbPCDVSX58'),       'kg', 1],
-            ['Lechuga Crespa',    450,  'verduras',  uns('5MU_4hPl67Y'),       'u',  1],
-            ['Zanahoria',         380,  'verduras',  uns('fWGBs1ol4_w'),       'kg', 1],
-            ['Papa Blanca',       420,  'verduras',  uns('JqYqM-udWH4'),       'kg', 1],
-            ['Cebolla',           350,  'verduras',  uns('iUGPq02__Gc'),       'kg', 1],
-            ['Ajo',               2800, 'verduras',  uns('bC1fXU1v98U'),       'kg', 1],
-            ['Leche Entera 1L',   1100, 'lacteos',   uns('c6TKtsi8C1k'),       'u',  1],
-            ['Queso Cremoso',     3500, 'lacteos',   img(7525004),             'kg', 1],
-            ['Yogur Natural',     980,  'lacteos',   img(4428345),             'u',  1],
-            ['Manteca 200g',      1450, 'lacteos',   img(3821250),             'u',  1],
-            ['Crema de Leche',    870,  'lacteos',   img(5336006),             'u',  0],
-            ['Milanesa Ternera',  6200, 'carnes',    uns('iehau6a1l8Q'),       'kg', 1],
-            ['Pollo Entero',      4800, 'carnes',    uns('HQ22vVXhWcc'),       'kg', 1],
-            ['Asado',             7500, 'carnes',    uns('YlAmh_X_SsE'),       'kg', 1],
-            ['Chorizo',           5200, 'carnes',    uns('RAoX-N4ZcK4'),       'kg', 1],
-            ['Pan Lactal',        1350, 'panaderia', uns('h3MVMRHitDU'),       'u',  1],
-            ['Medialunas x6',     1800, 'panaderia', uns('vU59Ut9vpQA'),       'u',  1],
-            ['Galletas Salvado',  890,  'panaderia', img(479628),              'u',  1],
-            ['Agua Mineral 1.5L', 650,  'bebidas',   img(31012801),            'u',  1],
-            ['Gaseosa 1.5L',      1200, 'bebidas',   uns('wKyxuVQDyP0'),       'u',  1],
-            ['Jugo Naranja 1L',   1480, 'bebidas',   img(26791666),            'u',  1],
-            ['Cerveza Lata',      980,  'bebidas',   uns('p5_XIonZdLc'),       'u',  1],
-            ['Arroz Largo 1kg',   1650, 'almacen',   uns('q-meIszitTs'),       'u',  1],
-            ['Fideos Spaghetti',  980,  'almacen',   img(4056907),             'u',  1],
-            ['Aceite Girasol 1L', 2100, 'almacen',   uns('KcdN8uj47EU'),       'u',  1],
-            ['Sal Fina 1kg',      480,  'almacen',   img(6401),               'u',  1],
-            ['Azúcar 1kg',        1100, 'almacen',   img(13466248),            'u',  1],
-            ['Café Molido 250g',  2800, 'almacen',   uns('3uXUiDjgH6U'),       'u',  1],
-        ];
-
-        $stmt = $pdo->prepare("
-            INSERT INTO productos (nombre, precio, categoria, imagen, unidad, stock_actual)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ");
-
-        $insertados = 0;
-        foreach ($productos as $p) {
-            $stmt->execute($p);
-            $insertados++;
-        }
-        msg("Se insertaron <b>{$insertados}</b> productos de ejemplo", 'ok');
-    }
-}
 
 // ── Tabla usuarios (backoffice) ──
 try {
