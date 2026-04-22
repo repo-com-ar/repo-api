@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(xargs sed *)",
-      "WebFetch(domain:api.databox.net.ar)"
+      "WebFetch(domain:api.databox.net.ar)",
+      "Bash(grep -E \"\\\\.\\(css|json\\)$\")"
     ]
   }
 }

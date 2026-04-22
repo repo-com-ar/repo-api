@@ -487,6 +487,52 @@ if ($ok) {
 }
 
 
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS carritos (
+            id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            usuario_id  INT UNSIGNED DEFAULT NULL,
+            estado      ENUM('activo','abandonado','exitoso') NOT NULL DEFAULT 'activo',
+            total       DECIMAL(12,2) NOT NULL DEFAULT 0,
+            created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            updated_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (usuario_id) REFERENCES clientes(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    msg("Tabla <b>carritos</b> creada/verificada", 'ok');
+} catch (Exception $e) {
+    msg("Error creando tabla carritos: " . htmlspecialchars($e->getMessage()), 'error');
+    $ok = false;
+}
+
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS carritos_items (
+            id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            carrito_id  INT UNSIGNED NOT NULL,
+            producto_id INT UNSIGNED DEFAULT NULL,
+            nombre      VARCHAR(120) NOT NULL,
+            precio      DECIMAL(10,2) NOT NULL,
+            cantidad    INT UNSIGNED NOT NULL DEFAULT 1,
+            FOREIGN KEY (carrito_id)  REFERENCES carritos(id)  ON DELETE CASCADE,
+            FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    msg("Tabla <b>carritos_items</b> creada/verificada", 'ok');
+} catch (Exception $e) {
+    msg("Error creando tabla carritos_items: " . htmlspecialchars($e->getMessage()), 'error');
+    $ok = false;
+}
+
+// Migración: session_id en carritos
+try {
+    $pdo->query("SELECT session_id FROM carritos LIMIT 1");
+    msg("Columna <b>session_id</b> ya existe en carritos", 'info');
+} catch (Exception $e) {
+    $pdo->exec("ALTER TABLE carritos ADD COLUMN session_id VARCHAR(64) NOT NULL DEFAULT '' AFTER usuario_id");
+    msg("Columna <b>session_id</b> agregada a carritos", 'ok');
+}
+
 // ── Tabla usuarios (backoffice) ──
 try {
     $pdo->exec("
