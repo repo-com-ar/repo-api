@@ -53,18 +53,23 @@ try {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS productos (
             id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            sku         INT UNSIGNED NOT NULL DEFAULT 0,
+            ean         VARCHAR(20)  DEFAULT '',
             nombre      VARCHAR(120) NOT NULL,
-            precio      DECIMAL(10,2) NOT NULL DEFAULT 0,
+            precio_compra DECIMAL(10,2) NOT NULL DEFAULT 0,
+            margen        DECIMAL(5,2)  NOT NULL DEFAULT 0,
+            precio_venta  DECIMAL(10,2) NOT NULL DEFAULT 0,
             categoria   VARCHAR(50)  NOT NULL,
-            emoji       VARCHAR(10)  DEFAULT '📦',
             imagen      VARCHAR(500) DEFAULT '',
+            contenido   VARCHAR(50)  DEFAULT NULL,
             unidad      VARCHAR(10)  DEFAULT 'u',
             stock_actual      INT NOT NULL DEFAULT 1,
             stock_comprometido INT NOT NULL DEFAULT 0,
             stock_minimo      INT NOT NULL DEFAULT 0,
             stock_recomendado INT NOT NULL DEFAULT 3,
             created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-            updated_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            updated_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_sku (sku)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
     msg("Tabla <b>productos</b> creada/verificada", 'ok');
@@ -93,6 +98,38 @@ try {
 } catch (Exception $e) {
     msg("Error creando tabla clientes: " . htmlspecialchars($e->getMessage()), 'error');
     $ok = false;
+}
+
+// Migración: eliminar columna emoji de productos
+try {
+    $hasEmoji = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'productos' AND COLUMN_NAME = 'emoji'")->fetchColumn();
+    if ($hasEmoji) {
+        $pdo->exec("ALTER TABLE productos DROP COLUMN emoji");
+        msg("Migración <b>productos</b>: columna emoji eliminada", 'ok');
+    }
+} catch (Exception $e) {
+    msg("Error migrando productos (emoji): " . htmlspecialchars($e->getMessage()), 'error');
+}
+
+// Migración: renombrar campo codigo a sku en productos
+try {
+    $hasCodigo = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'productos' AND COLUMN_NAME = 'codigo'")->fetchColumn();
+    if ($hasCodigo) {
+        $pdo->exec("ALTER TABLE productos CHANGE COLUMN codigo sku INT UNSIGNED NOT NULL DEFAULT 0");
+        try { $pdo->exec("ALTER TABLE productos DROP INDEX uk_codigo"); } catch (Exception $e) { /* puede no existir */ }
+        try { $pdo->exec("ALTER TABLE productos ADD UNIQUE KEY uk_sku (sku)"); } catch (Exception $e) { /* ya existe */ }
+        msg("Migración <b>productos</b>: campo codigo renombrado a sku", 'ok');
+    }
+} catch (Exception $e) {
+    msg("Error migrando productos (codigo→sku): " . htmlspecialchars($e->getMessage()), 'error');
+}
+
+// Eliminar trigger obsoleto si aún existe
+try {
+    $pdo->exec("DROP TRIGGER IF EXISTS tr_productos_sku");
+    msg("Trigger <b>tr_productos_sku</b> eliminado (SKU ahora se genera en PHP)", 'info');
+} catch (Exception $e) {
+    msg("Aviso al eliminar trigger tr_productos_sku: " . htmlspecialchars($e->getMessage()), 'warn');
 }
 
 // Migración: telefono → celular + reordenar correo en clientes
@@ -334,13 +371,46 @@ if ($ok) {
         msg("Columna <b>cliente_id</b> agregada a pedidos", 'ok');
     }
 
-    // peso_pieza en productos
+    // peso_pieza en productos — eliminar si existe
     try {
         $pdo->query("SELECT peso_pieza FROM productos LIMIT 1");
-        msg("Columna <b>peso_pieza</b> ya existe en productos", 'info');
+        $pdo->exec("ALTER TABLE productos DROP COLUMN peso_pieza");
+        msg("Columna obsoleta <b>peso_pieza</b> eliminada de productos", 'ok');
     } catch (Exception $e) {
-        $pdo->exec("ALTER TABLE productos ADD COLUMN peso_pieza DECIMAL(6,3) DEFAULT NULL");
-        msg("Columna <b>peso_pieza</b> agregada a productos", 'ok');
+        msg("Columna <b>peso_pieza</b> ya no existe en productos", 'info');
+    }
+
+    // contenido en productos
+    try {
+        $pdo->query("SELECT contenido FROM productos LIMIT 1");
+        msg("Columna <b>contenido</b> ya existe en productos", 'info');
+    } catch (Exception $e) {
+        $pdo->exec("ALTER TABLE productos ADD COLUMN contenido VARCHAR(50) DEFAULT NULL AFTER imagen");
+        msg("Columna <b>contenido</b> agregada a productos", 'ok');
+    }
+
+    // precio_compra y margen en productos
+    try {
+        $pdo->query("SELECT precio_compra FROM productos LIMIT 1");
+        msg("Columnas <b>precio_compra, margen</b> ya existen en productos", 'info');
+    } catch (Exception $e) {
+        $pdo->exec("ALTER TABLE productos ADD COLUMN precio_compra DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER ean, ADD COLUMN margen DECIMAL(5,2) NOT NULL DEFAULT 0 AFTER precio_compra");
+        msg("Columnas <b>precio_compra, margen</b> agregadas a productos", 'ok');
+    }
+
+    // precio → precio_venta en productos
+    try {
+        $pdo->query("SELECT precio_venta FROM productos LIMIT 1");
+        msg("Columna <b>precio_venta</b> ya existe en productos", 'info');
+    } catch (Exception $e) {
+        $hasPrecio = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'productos' AND COLUMN_NAME = 'precio'")->fetchColumn();
+        if ($hasPrecio) {
+            $pdo->exec("ALTER TABLE productos CHANGE COLUMN precio precio_venta DECIMAL(10,2) NOT NULL DEFAULT 0");
+            msg("Migración <b>productos</b>: columna precio renombrada a precio_venta", 'ok');
+        } else {
+            $pdo->exec("ALTER TABLE productos ADD COLUMN precio_venta DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER margen");
+            msg("Columna <b>precio_venta</b> agregada a productos", 'ok');
+        }
     }
 
     // stock_actual, stock_minimo, stock_recomendado en productos
@@ -448,45 +518,45 @@ if ($ok) {
         }
 
         $productos = [
-            ['Manzana Roja',      850,  'frutas',    '🍎', img(102104),              'kg', 1],
-            ['Banana',            620,  'frutas',    '🍌', uns('A4IIDSz6bTM'),       'kg', 1],
-            ['Naranja Navel',     750,  'frutas',    '🍊', uns('ZBXPPacUsVs'),       'kg', 1],
-            ['Limón',             480,  'frutas',    '🍋', uns('enNffryKuQI'),       'kg', 1],
-            ['Pera Williams',     920,  'frutas',    '🍐', uns('p9tDuQJV244'),       'kg', 0],
-            ['Frutilla',          1200, 'frutas',    '🍓', uns('THRRhA1ZGMk'),       'kg', 1],
-            ['Tomate Perita',     690,  'verduras',  '🍅', uns('aQbPCDVSX58'),       'kg', 1],
-            ['Lechuga Crespa',    450,  'verduras',  '🥬', uns('5MU_4hPl67Y'),       'u',  1],
-            ['Zanahoria',         380,  'verduras',  '🥕', uns('fWGBs1ol4_w'),       'kg', 1],
-            ['Papa Blanca',       420,  'verduras',  '🥔', uns('JqYqM-udWH4'),       'kg', 1],
-            ['Cebolla',           350,  'verduras',  '🧅', uns('iUGPq02__Gc'),       'kg', 1],
-            ['Ajo',               2800, 'verduras',  '🧄', uns('bC1fXU1v98U'),       'kg', 1],
-            ['Leche Entera 1L',   1100, 'lacteos',   '🥛', uns('c6TKtsi8C1k'),       'u',  1],
-            ['Queso Cremoso',     3500, 'lacteos',   '🧀', img(7525004),             'kg', 1],
-            ['Yogur Natural',     980,  'lacteos',   '🍦', img(4428345),             'u',  1],
-            ['Manteca 200g',      1450, 'lacteos',   '🧈', img(3821250),             'u',  1],
-            ['Crema de Leche',    870,  'lacteos',   '🥣', img(5336006),             'u',  0],
-            ['Milanesa Ternera',  6200, 'carnes',    '🥩', uns('iehau6a1l8Q'),       'kg', 1],
-            ['Pollo Entero',      4800, 'carnes',    '🍗', uns('HQ22vVXhWcc'),       'kg', 1],
-            ['Asado',             7500, 'carnes',    '🍖', uns('YlAmh_X_SsE'),       'kg', 1],
-            ['Chorizo',           5200, 'carnes',    '🌭', uns('RAoX-N4ZcK4'),       'kg', 1],
-            ['Pan Lactal',        1350, 'panaderia', '🍞', uns('h3MVMRHitDU'),       'u',  1],
-            ['Medialunas x6',     1800, 'panaderia', '🥐', uns('vU59Ut9vpQA'),       'u',  1],
-            ['Galletas Salvado',  890,  'panaderia', '🍪', img(479628),              'u',  1],
-            ['Agua Mineral 1.5L', 650,  'bebidas',   '💧', img(31012801),            'u',  1],
-            ['Gaseosa 1.5L',      1200, 'bebidas',   '🥤', uns('wKyxuVQDyP0'),       'u',  1],
-            ['Jugo Naranja 1L',   1480, 'bebidas',   '🧃', img(26791666),            'u',  1],
-            ['Cerveza Lata',      980,  'bebidas',   '🍺', uns('p5_XIonZdLc'),       'u',  1],
-            ['Arroz Largo 1kg',   1650, 'almacen',   '🍚', uns('q-meIszitTs'),       'u',  1],
-            ['Fideos Spaghetti',  980,  'almacen',   '🍝', img(4056907),             'u',  1],
-            ['Aceite Girasol 1L', 2100, 'almacen',   '🫙', uns('KcdN8uj47EU'),       'u',  1],
-            ['Sal Fina 1kg',      480,  'almacen',   '🧂', img(6401),               'u',  1],
-            ['Azúcar 1kg',        1100, 'almacen',   '🍬', img(13466248),            'u',  1],
-            ['Café Molido 250g',  2800, 'almacen',   '☕', uns('3uXUiDjgH6U'),       'u',  1],
+            ['Manzana Roja',      850,  'frutas',    img(102104),              'kg', 1],
+            ['Banana',            620,  'frutas',    uns('A4IIDSz6bTM'),       'kg', 1],
+            ['Naranja Navel',     750,  'frutas',    uns('ZBXPPacUsVs'),       'kg', 1],
+            ['Limón',             480,  'frutas',    uns('enNffryKuQI'),       'kg', 1],
+            ['Pera Williams',     920,  'frutas',    uns('p9tDuQJV244'),       'kg', 0],
+            ['Frutilla',          1200, 'frutas',    uns('THRRhA1ZGMk'),       'kg', 1],
+            ['Tomate Perita',     690,  'verduras',  uns('aQbPCDVSX58'),       'kg', 1],
+            ['Lechuga Crespa',    450,  'verduras',  uns('5MU_4hPl67Y'),       'u',  1],
+            ['Zanahoria',         380,  'verduras',  uns('fWGBs1ol4_w'),       'kg', 1],
+            ['Papa Blanca',       420,  'verduras',  uns('JqYqM-udWH4'),       'kg', 1],
+            ['Cebolla',           350,  'verduras',  uns('iUGPq02__Gc'),       'kg', 1],
+            ['Ajo',               2800, 'verduras',  uns('bC1fXU1v98U'),       'kg', 1],
+            ['Leche Entera 1L',   1100, 'lacteos',   uns('c6TKtsi8C1k'),       'u',  1],
+            ['Queso Cremoso',     3500, 'lacteos',   img(7525004),             'kg', 1],
+            ['Yogur Natural',     980,  'lacteos',   img(4428345),             'u',  1],
+            ['Manteca 200g',      1450, 'lacteos',   img(3821250),             'u',  1],
+            ['Crema de Leche',    870,  'lacteos',   img(5336006),             'u',  0],
+            ['Milanesa Ternera',  6200, 'carnes',    uns('iehau6a1l8Q'),       'kg', 1],
+            ['Pollo Entero',      4800, 'carnes',    uns('HQ22vVXhWcc'),       'kg', 1],
+            ['Asado',             7500, 'carnes',    uns('YlAmh_X_SsE'),       'kg', 1],
+            ['Chorizo',           5200, 'carnes',    uns('RAoX-N4ZcK4'),       'kg', 1],
+            ['Pan Lactal',        1350, 'panaderia', uns('h3MVMRHitDU'),       'u',  1],
+            ['Medialunas x6',     1800, 'panaderia', uns('vU59Ut9vpQA'),       'u',  1],
+            ['Galletas Salvado',  890,  'panaderia', img(479628),              'u',  1],
+            ['Agua Mineral 1.5L', 650,  'bebidas',   img(31012801),            'u',  1],
+            ['Gaseosa 1.5L',      1200, 'bebidas',   uns('wKyxuVQDyP0'),       'u',  1],
+            ['Jugo Naranja 1L',   1480, 'bebidas',   img(26791666),            'u',  1],
+            ['Cerveza Lata',      980,  'bebidas',   uns('p5_XIonZdLc'),       'u',  1],
+            ['Arroz Largo 1kg',   1650, 'almacen',   uns('q-meIszitTs'),       'u',  1],
+            ['Fideos Spaghetti',  980,  'almacen',   img(4056907),             'u',  1],
+            ['Aceite Girasol 1L', 2100, 'almacen',   uns('KcdN8uj47EU'),       'u',  1],
+            ['Sal Fina 1kg',      480,  'almacen',   img(6401),               'u',  1],
+            ['Azúcar 1kg',        1100, 'almacen',   img(13466248),            'u',  1],
+            ['Café Molido 250g',  2800, 'almacen',   uns('3uXUiDjgH6U'),       'u',  1],
         ];
 
         $stmt = $pdo->prepare("
-            INSERT INTO productos (nombre, precio, categoria, emoji, imagen, unidad, stock_actual)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO productos (nombre, precio, categoria, imagen, unidad, stock_actual)
+            VALUES (?, ?, ?, ?, ?, ?)
         ");
 
         $insertados = 0;
