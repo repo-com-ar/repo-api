@@ -4,7 +4,8 @@
       "Bash(xargs sed *)",
       "WebFetch(domain:api.databox.net.ar)",
       "Bash(grep -E \"\\\\.\\(css|json\\)$\")",
-      "Bash(sed 's/ .*//')"
+      "Bash(sed 's/ .*//')",
+      "Bash(xargs grep *)"
     ]
   }
 }
