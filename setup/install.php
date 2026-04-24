@@ -595,6 +595,79 @@ try {
     msg("Columna <b>repartidor_id</b> agregada a pedidos", 'ok');
 }
 
+// ── Tabla push_subscriptions (Web Push) ──
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            actor_type    ENUM('repartidor','cliente','usuario') NOT NULL,
+            actor_id      INT UNSIGNED NOT NULL,
+            origin        VARCHAR(120) NOT NULL DEFAULT '',
+            endpoint      VARCHAR(500) NOT NULL,
+            endpoint_hash CHAR(64)     NOT NULL,
+            p256dh        VARCHAR(255) NOT NULL,
+            auth_key      VARCHAR(255) NOT NULL,
+            user_agent    VARCHAR(255) NOT NULL DEFAULT '',
+            created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            last_used_at  TIMESTAMP    NULL DEFAULT NULL,
+            last_error    VARCHAR(255) NOT NULL DEFAULT '',
+            UNIQUE KEY uk_endpoint_hash (endpoint_hash),
+            INDEX idx_actor (actor_type, actor_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    msg("Tabla <b>push_subscriptions</b> creada/verificada", 'ok');
+} catch (Exception $e) {
+    msg("Error creando tabla push_subscriptions: " . htmlspecialchars($e->getMessage()), 'error');
+}
+
+// ── Generar par de claves VAPID una sola vez ──
+try {
+    $stmtVapid = $pdo->query("SELECT clave, valor FROM configuracion WHERE clave IN ('vapid_public_key','vapid_private_key','vapid_subject')");
+    $vapid = [];
+    foreach ($stmtVapid->fetchAll() as $r) { $vapid[$r['clave']] = $r['valor']; }
+
+    if (empty($vapid['vapid_public_key']) || empty($vapid['vapid_private_key'])) {
+        $keyRes = openssl_pkey_new([
+            'curve_name'       => 'prime256v1',
+            'private_key_type' => OPENSSL_KEYTYPE_EC,
+        ]);
+        if ($keyRes === false) {
+            throw new Exception('openssl_pkey_new falló — ¿está disponible la extensión openssl con curvas EC?');
+        }
+        $details = openssl_pkey_get_details($keyRes);
+
+        // Formato raw para Web Push (RFC 8291):
+        //   pública  = 0x04 || X(32) || Y(32)       — 65 bytes uncompressed
+        //   privada  = d (32 bytes, big-endian)
+        $x = str_pad($details['ec']['x'], 32, "\x00", STR_PAD_LEFT);
+        $y = str_pad($details['ec']['y'], 32, "\x00", STR_PAD_LEFT);
+        $d = str_pad($details['ec']['d'], 32, "\x00", STR_PAD_LEFT);
+        $publicRaw  = "\x04" . $x . $y;
+        $privateRaw = $d;
+
+        $b64u = function ($bin) { return rtrim(strtr(base64_encode($bin), '+/', '-_'), '='); };
+
+        $pdo->prepare("INSERT INTO configuracion (clave, valor) VALUES (?, ?)
+                       ON DUPLICATE KEY UPDATE valor = VALUES(valor)")
+            ->execute(['vapid_public_key',  $b64u($publicRaw)]);
+        $pdo->prepare("INSERT INTO configuracion (clave, valor) VALUES (?, ?)
+                       ON DUPLICATE KEY UPDATE valor = VALUES(valor)")
+            ->execute(['vapid_private_key', $b64u($privateRaw)]);
+
+        // Subject por defecto — el operador puede cambiarlo desde Configuración si quiere
+        if (empty($vapid['vapid_subject'])) {
+            $pdo->prepare("INSERT IGNORE INTO configuracion (clave, valor) VALUES (?, ?)")
+                ->execute(['vapid_subject', 'mailto:admin@repo.com.ar']);
+        }
+
+        msg("Claves <b>VAPID</b> generadas y guardadas en configuración", 'ok');
+    } else {
+        msg("Claves <b>VAPID</b> ya existen — no se regeneran", 'info');
+    }
+} catch (Exception $e) {
+    msg("Error generando claves VAPID: " . htmlspecialchars($e->getMessage()), 'error');
+}
+
 endif; // $ok
 ?>
 <!DOCTYPE html>
