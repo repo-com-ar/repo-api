@@ -5,7 +5,8 @@
       "WebFetch(domain:api.databox.net.ar)",
       "Bash(grep -E \"\\\\.\\(css|json\\)$\")",
       "Bash(sed 's/ .*//')",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Read(//c/Users/Javier/Documents/Repositorios/repo/**)"
     ]
   }
 }
