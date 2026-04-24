@@ -1,11 +1,1 @@
-
-# colebiosanjuan
-* * * * * curl https://api.colebiosanjuan.org/robot/mensajesEnviar
-* * * * * sleep 10; curl https://api.colebiosanjuan.org/robot/mensajesEnviar
-* * * * * sleep 20; curl https://api.colebiosanjuan.org/robot/mensajesEnviar
-* * * * * sleep 30; curl https://api.colebiosanjuan.org/robot/mensajesEnviar
-* * * * * sleep 40; curl https://api.colebiosanjuan.org/robot/mensajesEnviar
-* * * * * sleep 50; curl https://api.colebiosanjuan.org/robot/mensajesEnviar
-10 9 * * 1,3,5 curl https://api.colebiosanjuan.org/robot/presentacionesRecordar
-# 20 9 * * 1,3,5 curl https://api.colebiosanjuan.org/robot/liquidacionesRecordar
-30 9 * * 1,3,5 curl https://api.colebiosanjuan.org/robot/devolucionesRecordar
+*/5 * * * * curl https://api.repo.com.ar/cron/categorias_productos

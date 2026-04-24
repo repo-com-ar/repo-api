@@ -1,6 +1,12 @@
-# repo-api — Configuración compartida y base de datos
+# repo-api — Configuración compartida, base de datos y cron jobs
 
-Repositorio central que contiene la conexión a la base de datos, el instalador del esquema y los scripts de procesos automáticos. No expone endpoints propios; los otros tres repos dependen de él.
+Repositorio central que cumple tres funciones:
+
+1. **Conexión compartida a la base de datos** (`config/db.php`) — los otros repos la incluyen.
+2. **Instalador del esquema** (`setup/install.php`) — crea todas las tablas.
+3. **Cron jobs** (`cron/`) — scripts HTTP que corren periódicamente desde el crontab del servidor.
+
+El dominio `api.repo.com.ar` apunta al directorio raíz de este repo y expone `cron/*.php` como endpoints públicos. No hay endpoints de negocio propios; esos viven en `repo-app/api`, `repo-admin/api`, etc.
 
 ---
 
@@ -9,10 +15,16 @@ Repositorio central que contiene la conexión a la base de datos, el instalador 
 ```
 repo-api/
 ├── config/
-│   └── db.php          # Conexión PDO compartida — getDB()
+│   └── db.php                  # Conexión PDO compartida — getDB()
 ├── setup/
-│   └── install.php     # Instalador del esquema (ejecutar una sola vez)
-└── robot/              # Scripts de procesos automáticos (cron jobs)
+│   └── install.php             # Instalador del esquema (ejecutar una sola vez)
+├── cron/                       # Scripts HTTP para cron jobs
+│   ├── ejemplo.php
+│   └── categorias_productos.php
+└── linux/
+    ├── crontab                 # Líneas del crontab del servidor
+    ├── vhost.conf              # VirtualHosts de Apache para todos los dominios
+    └── renovar.sh              # Script de renovación SSL
 ```
 
 ---
@@ -61,23 +73,33 @@ php setup/install.php
 
 ---
 
-## Scripts automáticos (`robot/`)
+## Cron jobs (`cron/`)
 
-Scripts PHP ejecutados por cron. Cada script verifica que se ejecuta desde CLI:
+Los cron jobs son scripts PHP expuestos como endpoints HTTP bajo `https://api.repo.com.ar/cron/`. El crontab del servidor los invoca con `curl`, en vez de ejecutar PHP por CLI. Esto permite que compartan el mismo intérprete PHP y las mismas dependencias que el resto del sitio, y que se puedan probar manualmente abriendo la URL en el navegador.
 
-```php
-if (php_sapi_name() !== 'cli') { http_response_code(403); exit; }
-```
+Cada script:
+
+- Incluye `config/db.php` para obtener la conexión PDO.
+- Hace una sola tarea puntual (recalcular agregados, limpiar datos vencidos, enviar recordatorios, etc.).
+- Responde `ok` en éxito, o `error: <mensaje>` con HTTP 500 en falla — conveniente para los logs de cron.
+- Puede aplicar migraciones perezosas (`ALTER TABLE` dentro de try/catch) si el schema cambió.
+
+### Cron jobs actuales
+
+| Endpoint | Frecuencia | Descripción |
+|---|---|---|
+| `/cron/categorias_productos` | cada 5 min | Recalcula `categorias.productos` = conteo de productos con `stock_actual > 0` por categoría |
 
 ### Agregar un nuevo cron job
 
-1. Crear el script en `robot/nombre_tarea.php`.
-2. Agregar la línea en el crontab del servidor:
+1. Crear `cron/<nombre>.php` siguiendo el patrón de los existentes.
+2. Agregar la línea en `linux/crontab`:
 
-```bash
-# Ejemplo: ejecutar cada 30 minutos
-*/30 * * * * php /var/www/repo-api/robot/nombre_tarea.php
+```cron
+*/30 * * * * curl https://api.repo.com.ar/cron/<nombre>
 ```
+
+3. Instalar el crontab en el servidor: `crontab linux/crontab`.
 
 ---
 

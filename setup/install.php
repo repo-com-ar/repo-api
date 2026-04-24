@@ -40,6 +40,7 @@ try {
             imagen      VARCHAR(500) DEFAULT '',
             orden       INT UNSIGNED NOT NULL DEFAULT 0,
             activa      TINYINT(1)   NOT NULL DEFAULT 1,
+            productos   INT UNSIGNED NOT NULL DEFAULT 0,
             created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
