@@ -620,6 +620,46 @@ try {
     msg("Error creando tabla push_subscriptions: " . htmlspecialchars($e->getMessage()), 'error');
 }
 
+// ── Migraciones: metodo_pago y estado_pago en pedidos ──
+try {
+    $pdo->query("SELECT metodo_pago FROM pedidos LIMIT 1");
+    msg("Columnas <b>metodo_pago, estado_pago</b> ya existen en pedidos", 'info');
+} catch (Exception $e) {
+    $pdo->exec("ALTER TABLE pedidos
+        ADD COLUMN metodo_pago ENUM('efectivo','mercadopago','mixto') DEFAULT NULL,
+        ADD COLUMN estado_pago ENUM('pendiente','pagado','parcial','reembolsado') NOT NULL DEFAULT 'pendiente'");
+    msg("Columnas <b>metodo_pago, estado_pago</b> agregadas a pedidos", 'ok');
+}
+
+// ── Tabla pagos ──
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS pagos (
+            id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            pedido_id         INT UNSIGNED NOT NULL,
+            metodo            ENUM('efectivo','mercadopago') NOT NULL,
+            monto             DECIMAL(12,2) NOT NULL,
+            estado            ENUM('pendiente','aprobado','rechazado','reembolsado') NOT NULL DEFAULT 'pendiente',
+            mp_preference_id  VARCHAR(100) DEFAULT NULL,
+            mp_payment_id     VARCHAR(100) DEFAULT NULL,
+            mp_status         VARCHAR(50)  DEFAULT NULL,
+            recibido_por      VARCHAR(80)  DEFAULT NULL,
+            notas             TEXT,
+            created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE CASCADE,
+            INDEX idx_pedido (pedido_id),
+            INDEX idx_metodo (metodo),
+            INDEX idx_estado (estado),
+            INDEX idx_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    msg("Tabla <b>pagos</b> creada/verificada", 'ok');
+} catch (Exception $e) {
+    msg("Error creando tabla pagos: " . htmlspecialchars($e->getMessage()), 'error');
+    $ok = false;
+}
+
 // ── Generar par de claves VAPID una sola vez ──
 try {
     $stmtVapid = $pdo->query("SELECT clave, valor FROM configuracion WHERE clave IN ('vapid_public_key','vapid_private_key','vapid_subject')");
