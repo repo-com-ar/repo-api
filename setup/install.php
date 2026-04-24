@@ -41,7 +41,9 @@ try {
             orden       INT UNSIGNED NOT NULL DEFAULT 0,
             activa      TINYINT(1)   NOT NULL DEFAULT 1,
             productos   INT UNSIGNED NOT NULL DEFAULT 0,
-            created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+            parent_id   VARCHAR(50)  NULL DEFAULT NULL,
+            created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_parent_id (parent_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
     msg("Tabla <b>categorias</b> creada/verificada", 'ok');
