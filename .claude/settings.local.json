@@ -6,7 +6,10 @@
       "Bash(grep -E \"\\\\.\\(css|json\\)$\")",
       "Bash(sed 's/ .*//')",
       "Bash(xargs grep *)",
-      "Read(//c/Users/Javier/Documents/Repositorios/repo/**)"
+      "Read(//c/Users/Javier/Documents/Repositorios/repo/**)",
+      "WebSearch",
+      "WebFetch(domain:www.mercadopago.com.ar)",
+      "WebFetch(domain:dev.to)"
     ]
   }
 }

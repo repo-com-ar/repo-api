@@ -626,7 +626,7 @@ try {
     msg("Columnas <b>metodo_pago, estado_pago</b> ya existen en pedidos", 'info');
 } catch (Exception $e) {
     $pdo->exec("ALTER TABLE pedidos
-        ADD COLUMN metodo_pago ENUM('efectivo','mercadopago','mixto') DEFAULT NULL,
+        ADD COLUMN metodo_pago ENUM('efectivo','mercadopago') DEFAULT NULL,
         ADD COLUMN estado_pago ENUM('pendiente','pagado','parcial','reembolsado') NOT NULL DEFAULT 'pendiente'");
     msg("Columnas <b>metodo_pago, estado_pago</b> agregadas a pedidos", 'ok');
 }
