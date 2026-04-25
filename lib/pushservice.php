@@ -54,6 +54,29 @@ function push_ensure_schema(): void {
         ");
     }
 
+    // 1b. Tabla notificaciones (historial de notificaciones enviadas)
+    try {
+        $pdo->query("SELECT id FROM notificaciones LIMIT 1");
+    } catch (Exception $e) {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS notificaciones (
+                id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                actor_type  ENUM('repartidor','cliente','usuario') NOT NULL,
+                actor_id    INT UNSIGNED NOT NULL,
+                titulo      VARCHAR(200) NOT NULL,
+                cuerpo      TEXT NOT NULL,
+                data        TEXT NULL,
+                estado      VARCHAR(20) NOT NULL DEFAULT 'enviado',
+                error       VARCHAR(500) NOT NULL DEFAULT '',
+                leida       TINYINT(1) NOT NULL DEFAULT 0,
+                leida_at    TIMESTAMP NULL DEFAULT NULL,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_actor_unread (actor_type, actor_id, leida),
+                INDEX idx_created (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    }
+
     // 2. Claves VAPID en la tabla configuracion
     try {
         $have = (int)$pdo->query(
@@ -182,15 +205,39 @@ function push_vapid_config(): array {
  * @return array estadísticas: ['enviados' => N, 'fallidos' => N, 'muertos' => N]
  */
 function push_enviar_a(string $actor_type, ?int $actor_id, string $titulo, string $body, array $data = []): array {
+    push_ensure_schema();
+    $pdo   = getDB();
     $vapid = push_vapid_config();
     $stats = ['enviados' => 0, 'fallidos' => 0, 'muertos' => 0];
 
+    $dataJson = json_encode($data, JSON_UNESCAPED_UNICODE);
+
+    // Registrar la notificación en el historial (una fila por destinatario único)
+    $stmtLog = $pdo->prepare(
+        "INSERT INTO notificaciones (actor_type, actor_id, titulo, cuerpo, data, estado, error)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
+    );
+
     if (empty($vapid['public']) || empty($vapid['private'])) {
+        // Sin VAPID no podemos enviar push, pero igual dejamos el registro como fallido
+        if ($actor_id !== null) {
+            $stmtLog->execute([$actor_type, $actor_id, $titulo, $body, $dataJson, 'fallido', 'VAPID keys no configuradas']);
+        }
         return $stats + ['error' => 'VAPID keys no configuradas — correr install.php'];
     }
 
     $subs = push_list($actor_type, $actor_id);
-    if (!$subs) { return $stats; }
+
+    // Determinar destinatarios únicos (un actor_id puede tener múltiples devices)
+    $recipients = [];
+    if ($actor_id !== null) {
+        $recipients[$actor_id] = true; // siempre registramos al destinatario aunque no tenga subs
+    }
+    foreach ($subs as $s) {
+        $recipients[(int)$s['actor_id']] = true;
+    }
+
+    if (!$subs && !$recipients) { return $stats; }
 
     $payload = json_encode([
         'title' => $titulo,
@@ -198,8 +245,14 @@ function push_enviar_a(string $actor_type, ?int $actor_id, string $titulo, strin
         'data'  => $data,
     ], JSON_UNESCAPED_UNICODE);
 
-    $pdo = getDB();
+    // Estadísticas por actor para decidir el estado de la notificación
+    $statsByActor = [];
     foreach ($subs as $s) {
+        $aid = (int)$s['actor_id'];
+        if (!isset($statsByActor[$aid])) {
+            $statsByActor[$aid] = ['ok' => 0, 'fail' => 0, 'last_err' => ''];
+        }
+
         $res = webpush_send([
             'endpoint' => $s['endpoint'],
             'p256dh'   => $s['p256dh'],
@@ -211,16 +264,35 @@ function push_enviar_a(string $actor_type, ?int $actor_id, string $titulo, strin
             $pdo->prepare("UPDATE push_subscriptions SET last_used_at = NOW(), last_error = '' WHERE id = ?")
                 ->execute([$s['id']]);
             $stats['enviados']++;
+            $statsByActor[$aid]['ok']++;
         } elseif ($st === 404 || $st === 410) {
-            // Suscripción expirada o cancelada por el usuario → limpiar
             $pdo->prepare("DELETE FROM push_subscriptions WHERE id = ?")->execute([$s['id']]);
             $stats['muertos']++;
+            $statsByActor[$aid]['fail']++;
+            $statsByActor[$aid]['last_err'] = 'Suscripción expirada';
         } else {
             $err = substr(($res['error'] ?: 'HTTP ' . $st . ' ' . $res['body']), 0, 250);
             $pdo->prepare("UPDATE push_subscriptions SET last_error = ? WHERE id = ?")
                 ->execute([$err, $s['id']]);
             $stats['fallidos']++;
+            $statsByActor[$aid]['fail']++;
+            $statsByActor[$aid]['last_err'] = $err;
         }
     }
+
+    // Insertar una fila por destinatario único
+    foreach (array_keys($recipients) as $aid) {
+        $sa = $statsByActor[$aid] ?? null;
+        if ($sa && $sa['ok'] > 0) {
+            $estado = 'enviado'; $err = '';
+        } elseif ($sa && $sa['fail'] > 0) {
+            $estado = 'fallido'; $err = (string)$sa['last_err'];
+        } else {
+            // El destinatario no tenía suscripciones activas
+            $estado = 'sin_dispositivo'; $err = '';
+        }
+        $stmtLog->execute([$actor_type, $aid, $titulo, $body, $dataJson, $estado, substr($err, 0, 500)]);
+    }
+
     return $stats;
 }

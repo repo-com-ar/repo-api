@@ -620,6 +620,30 @@ try {
     msg("Error creando tabla push_subscriptions: " . htmlspecialchars($e->getMessage()), 'error');
 }
 
+// ── Tabla notificaciones ──
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS notificaciones (
+            id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            actor_type  ENUM('repartidor','cliente','usuario') NOT NULL,
+            actor_id    INT UNSIGNED NOT NULL,
+            titulo      VARCHAR(200) NOT NULL,
+            cuerpo      TEXT NOT NULL,
+            data        TEXT NULL,
+            estado      VARCHAR(20) NOT NULL DEFAULT 'enviado',
+            error       VARCHAR(500) NOT NULL DEFAULT '',
+            leida       TINYINT(1) NOT NULL DEFAULT 0,
+            leida_at    TIMESTAMP NULL DEFAULT NULL,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_actor_unread (actor_type, actor_id, leida),
+            INDEX idx_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    msg("Tabla <b>notificaciones</b> creada/verificada", 'ok');
+} catch (Exception $e) {
+    msg("Error creando tabla notificaciones: " . htmlspecialchars($e->getMessage()), 'error');
+}
+
 // ── Migraciones: metodo_pago y estado_pago en pedidos ──
 try {
     $pdo->query("SELECT metodo_pago FROM pedidos LIMIT 1");
