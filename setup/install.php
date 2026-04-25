@@ -551,6 +551,7 @@ try {
             nombre      VARCHAR(120) NOT NULL,
             correo      VARCHAR(150) DEFAULT NULL,
             celular     VARCHAR(40)  DEFAULT '',
+            vehiculo    ENUM('bicicleta','moto','auto','furgon','camioneta','camion') DEFAULT NULL,
             direccion   VARCHAR(255) DEFAULT '',
             contrasena  VARCHAR(100) NOT NULL DEFAULT '',
             clave       VARCHAR(100) NOT NULL DEFAULT '',
@@ -563,6 +564,68 @@ try {
     msg("Tabla <b>repartidores</b> creada/verificada", 'ok');
 } catch (Exception $e) {
     msg("Error creando tabla repartidores: " . htmlspecialchars($e->getMessage()), 'error');
+    $ok = false;
+}
+
+// ── Tabla cuentas (plan de cuentas contable) ──
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS cuentas (
+            id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            codigo      VARCHAR(20)  NOT NULL UNIQUE,
+            nombre      VARCHAR(160) NOT NULL,
+            tipo        ENUM('activo','pasivo','patrimonio','ingreso','egreso') NOT NULL,
+            parent_id   INT UNSIGNED DEFAULT NULL,
+            nivel       TINYINT UNSIGNED NOT NULL DEFAULT 1,
+            imputable   TINYINT(1)   NOT NULL DEFAULT 1,
+            naturaleza  ENUM('deudora','acreedora') NOT NULL,
+            descripcion TEXT         DEFAULT NULL,
+            activa      TINYINT(1)   NOT NULL DEFAULT 1,
+            created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            updated_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_parent (parent_id),
+            INDEX idx_tipo (tipo),
+            INDEX idx_codigo (codigo)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    msg("Tabla <b>cuentas</b> creada/verificada", 'ok');
+} catch (Exception $e) {
+    msg("Error creando tabla cuentas: " . htmlspecialchars($e->getMessage()), 'error');
+    $ok = false;
+}
+
+// ── Tablas asientos / asientos_detalle (libro diario) ──
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS asientos (
+            id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            numero      INT UNSIGNED NOT NULL,
+            fecha       DATE         NOT NULL,
+            descripcion VARCHAR(255) NOT NULL,
+            total       DECIMAL(14,2) NOT NULL DEFAULT 0,
+            created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            updated_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_numero (numero),
+            INDEX idx_fecha (fecha)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS asientos_detalle (
+            id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            asiento_id  INT UNSIGNED NOT NULL,
+            cuenta_id   INT UNSIGNED NOT NULL,
+            debe        DECIMAL(14,2) NOT NULL DEFAULT 0,
+            haber       DECIMAL(14,2) NOT NULL DEFAULT 0,
+            descripcion VARCHAR(255) DEFAULT NULL,
+            orden       TINYINT UNSIGNED NOT NULL DEFAULT 0,
+            INDEX idx_asiento (asiento_id),
+            INDEX idx_cuenta (cuenta_id),
+            CONSTRAINT fk_asd_asiento FOREIGN KEY (asiento_id) REFERENCES asientos(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    msg("Tablas <b>asientos</b> y <b>asientos_detalle</b> creadas/verificadas", 'ok');
+} catch (Exception $e) {
+    msg("Error creando tablas asientos: " . htmlspecialchars($e->getMessage()), 'error');
     $ok = false;
 }
 
