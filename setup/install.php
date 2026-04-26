@@ -165,10 +165,15 @@ try {
             celular     VARCHAR(40)  DEFAULT '',
             direccion   VARCHAR(255) DEFAULT '',
             notas       TEXT,
+            subtotal    DECIMAL(12,2) NOT NULL DEFAULT 0,
+            envio       DECIMAL(12,2) NOT NULL DEFAULT 0,
             total       DECIMAL(12,2) NOT NULL DEFAULT 0,
+            deposito_id INT UNSIGNED DEFAULT NULL,
             estado      VARCHAR(30)  NOT NULL DEFAULT 'recibido',
-            lat         DECIMAL(10,7) DEFAULT NULL,
-            lng         DECIMAL(10,7) DEFAULT NULL,
+            retiro_lat  DECIMAL(10,7) DEFAULT NULL,
+            retiro_lng  DECIMAL(10,7) DEFAULT NULL,
+            entrega_lat DECIMAL(10,7) DEFAULT NULL,
+            entrega_lng DECIMAL(10,7) DEFAULT NULL,
             distancia_km DECIMAL(8,2) DEFAULT NULL,
             tiempo_min  INT UNSIGNED DEFAULT NULL,
             created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
@@ -206,6 +211,34 @@ try {
     }
 } catch (Exception $e) {
     msg("Error migrando pedidos (entrega): " . htmlspecialchars($e->getMessage()), 'error');
+}
+
+// Migración: subtotal y envio en pedidos
+try {
+    $hasSubtotal = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pedidos' AND COLUMN_NAME = 'subtotal'")->fetchColumn();
+    if (!$hasSubtotal) {
+        $pdo->exec("ALTER TABLE pedidos ADD COLUMN subtotal DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER entrega_franja, ADD COLUMN envio DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER subtotal");
+        // Inicializar subtotal con el valor actual de total (envio = 0)
+        $pdo->exec("UPDATE pedidos SET subtotal = total WHERE subtotal = 0");
+        msg("Migración <b>pedidos</b>: columnas subtotal y envio agregadas", 'ok');
+    } else {
+        msg("Columnas <b>subtotal, envio</b> ya existen en pedidos", 'info');
+    }
+} catch (Exception $e) {
+    msg("Error migrando pedidos (subtotal/envio): " . htmlspecialchars($e->getMessage()), 'error');
+}
+
+// Migración: deposito_id en pedidos
+try {
+    $hasDepositoId = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pedidos' AND COLUMN_NAME = 'deposito_id'")->fetchColumn();
+    if (!$hasDepositoId) {
+        $pdo->exec("ALTER TABLE pedidos ADD COLUMN deposito_id INT UNSIGNED DEFAULT NULL AFTER total");
+        msg("Migración <b>pedidos</b>: columna deposito_id agregada", 'ok');
+    } else {
+        msg("Columna <b>deposito_id</b> ya existe en pedidos", 'info');
+    }
+} catch (Exception $e) {
+    msg("Error migrando pedidos (deposito_id): " . htmlspecialchars($e->getMessage()), 'error');
 }
 
 try {
@@ -413,6 +446,7 @@ try {
         'pedido_minimo'          => '0',
         'centro_dist_lat'        => '',
         'centro_dist_lng'        => '',
+        'precio_base_envio'      => '0',
         'precio_km'              => '0',
         'datarocket_url'         => '',
         'datarocket_apikey'      => '',
@@ -472,13 +506,30 @@ try {
 
 // ── 1b. Migraciones: agregar columnas faltantes ──────────────────
 if ($ok) {
-    // lat, lng en pedidos
+    // lat/lng → entrega_lat/entrega_lng + retiro_lat/retiro_lng en pedidos
     try {
-        $pdo->query("SELECT lat FROM pedidos LIMIT 1");
-        msg("Columnas <b>lat, lng</b> ya existen en pedidos", 'info');
+        $hasEntregaLat = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pedidos' AND COLUMN_NAME = 'entrega_lat'")->fetchColumn();
+        if (!$hasEntregaLat) {
+            $hasLat = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pedidos' AND COLUMN_NAME = 'lat'")->fetchColumn();
+            if ($hasLat) {
+                $pdo->exec("ALTER TABLE pedidos CHANGE lat entrega_lat DECIMAL(10,7) DEFAULT NULL, CHANGE lng entrega_lng DECIMAL(10,7) DEFAULT NULL");
+                msg("Migración <b>pedidos</b>: lat/lng renombradas a entrega_lat/entrega_lng", 'ok');
+            } else {
+                $pdo->exec("ALTER TABLE pedidos ADD COLUMN entrega_lat DECIMAL(10,7) DEFAULT NULL, ADD COLUMN entrega_lng DECIMAL(10,7) DEFAULT NULL");
+                msg("Columnas <b>entrega_lat, entrega_lng</b> agregadas a pedidos", 'ok');
+            }
+        } else {
+            msg("Columnas <b>entrega_lat, entrega_lng</b> ya existen en pedidos", 'info');
+        }
+        $hasRetiroLat = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pedidos' AND COLUMN_NAME = 'retiro_lat'")->fetchColumn();
+        if (!$hasRetiroLat) {
+            $pdo->exec("ALTER TABLE pedidos ADD COLUMN retiro_lat DECIMAL(10,7) DEFAULT NULL AFTER estado, ADD COLUMN retiro_lng DECIMAL(10,7) DEFAULT NULL AFTER retiro_lat");
+            msg("Columnas <b>retiro_lat, retiro_lng</b> agregadas a pedidos", 'ok');
+        } else {
+            msg("Columnas <b>retiro_lat, retiro_lng</b> ya existen en pedidos", 'info');
+        }
     } catch (Exception $e) {
-        $pdo->exec("ALTER TABLE pedidos ADD COLUMN lat DECIMAL(10,7) DEFAULT NULL, ADD COLUMN lng DECIMAL(10,7) DEFAULT NULL");
-        msg("Columnas <b>lat, lng</b> agregadas a pedidos", 'ok');
+        msg("Error migrando coordenadas de pedidos: " . htmlspecialchars($e->getMessage()), 'error');
     }
 
     // distancia_km en pedidos
@@ -631,6 +682,7 @@ try {
             usuario_id  INT UNSIGNED DEFAULT NULL,
             estado      ENUM('activo','abandonado','exitoso') NOT NULL DEFAULT 'activo',
             total       DECIMAL(12,2) NOT NULL DEFAULT 0,
+            deposito_id INT UNSIGNED DEFAULT NULL,
             created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
             updated_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (usuario_id) REFERENCES clientes(id) ON DELETE SET NULL
@@ -668,6 +720,15 @@ try {
 } catch (Exception $e) {
     $pdo->exec("ALTER TABLE carritos ADD COLUMN session_id VARCHAR(64) NOT NULL DEFAULT '' AFTER usuario_id");
     msg("Columna <b>session_id</b> agregada a carritos", 'ok');
+}
+
+// Migración: deposito_id en carritos
+try {
+    $pdo->query("SELECT deposito_id FROM carritos LIMIT 1");
+    msg("Columna <b>deposito_id</b> ya existe en carritos", 'info');
+} catch (Exception $e) {
+    $pdo->exec("ALTER TABLE carritos ADD COLUMN deposito_id INT UNSIGNED DEFAULT NULL AFTER total");
+    msg("Columna <b>deposito_id</b> agregada a carritos", 'ok');
 }
 
 try {
@@ -782,6 +843,22 @@ try {
 } catch (Exception $e) {
     $pdo->exec("ALTER TABLE pedidos ADD COLUMN repartidor_id INT UNSIGNED DEFAULT NULL AFTER cliente_id");
     msg("Columna <b>repartidor_id</b> agregada a pedidos", 'ok');
+}
+
+// Migración: repartidor_tarifa en pedidos (renombrado desde repartidor_pago)
+try {
+    $pdo->query("SELECT repartidor_tarifa FROM pedidos LIMIT 1");
+    msg("Columna <b>repartidor_tarifa</b> ya existe en pedidos", 'info');
+} catch (Exception $e) {
+    // Si existe con el nombre viejo, renombrar; si no, crear directamente
+    try {
+        $pdo->query("SELECT repartidor_pago FROM pedidos LIMIT 1");
+        $pdo->exec("ALTER TABLE pedidos CHANGE repartidor_pago repartidor_tarifa DECIMAL(12,2) DEFAULT NULL");
+        msg("Columna <b>repartidor_pago</b> renombrada a <b>repartidor_tarifa</b> en pedidos", 'ok');
+    } catch (Exception $e2) {
+        $pdo->exec("ALTER TABLE pedidos ADD COLUMN repartidor_tarifa DECIMAL(12,2) DEFAULT NULL AFTER repartidor_id");
+        msg("Columna <b>repartidor_tarifa</b> agregada a pedidos", 'ok');
+    }
 }
 
 // ── Tabla push_subscriptions (Web Push) ──
