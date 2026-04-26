@@ -13,7 +13,14 @@
       "Skill(update-config)",
       "Skill(update-config:*)",
       "Bash(php -r ' *)",
-      "PowerShell($phpPath = \\(Get-Command php -ErrorAction SilentlyContinue\\).Source; if \\(-not $phpPath\\) { $candidates = @\\(\"C:\\\\xampp\\\\php\\\\php.exe\", \"C:\\\\wamp64\\\\bin\\\\php\\\\php8.2\\\\php.exe\", \"C:\\\\laragon\\\\bin\\\\php\\\\php-8.2\\\\php.exe\", \"C:\\\\Program Files\\\\PHP\\\\php.exe\"\\); foreach \\($c in $candidates\\) { if \\(Test-Path $c\\) { $phpPath = $c; break } } }; if \\($phpPath\\) { Write-Output \"PHP: $phpPath\" } else { Write-Output \"PHP no encontrado en PATH ni en rutas comunes\" })"
+      "PowerShell($phpPath = \\(Get-Command php -ErrorAction SilentlyContinue\\).Source; if \\(-not $phpPath\\) { $candidates = @\\(\"C:\\\\xampp\\\\php\\\\php.exe\", \"C:\\\\wamp64\\\\bin\\\\php\\\\php8.2\\\\php.exe\", \"C:\\\\laragon\\\\bin\\\\php\\\\php-8.2\\\\php.exe\", \"C:\\\\Program Files\\\\PHP\\\\php.exe\"\\); foreach \\($c in $candidates\\) { if \\(Test-Path $c\\) { $phpPath = $c; break } } }; if \\($phpPath\\) { Write-Output \"PHP: $phpPath\" } else { Write-Output \"PHP no encontrado en PATH ni en rutas comunes\" })",
+      "Bash(php -l c:/Users/Javier/Documents/Repositorios/repo/repo-admin/api/analiticas.php)",
+      "PowerShell(php -l \"c:/Users/Javier/Documents/Repositorios/repo/repo-admin/api/analiticas.php\")",
+      "Bash(git -C \"c:/Users/Javier/Documents/Repositorios/repo/repo-api\" log --oneline --after=\"2026-04-23T22:15:32\" --format=\"%h %s\")",
+      "Bash(git -C \"c:/Users/Javier/Documents/Repositorios/repo/repo-media\" log --oneline --after=\"2026-04-20T16:03:39\" --format=\"%h %s\")",
+      "Bash(git -C \"c:/Users/Javier/Documents/Repositorios/repo/repo-admin\" log --oneline --after=\"2026-04-23T01:54:25\" --format=\"%h %s\")",
+      "Bash(git -C \"c:/Users/Javier/Documents/Repositorios/repo/repo-delivery\" log --oneline --after=\"2026-04-23T01:54:32\" --format=\"%h %s\")",
+      "Bash(git -C \"c:/Users/Javier/Documents/Repositorios/repo/repo-app\" log --oneline --after=\"2026-04-23T01:54:28\" --format=\"%h %s\")"
     ]
   }
 }

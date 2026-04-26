@@ -19,7 +19,6 @@ repo-api/
 ├── setup/
 │   └── install.php             # Instalador del esquema (ejecutar una sola vez)
 ├── cron/                       # Scripts HTTP para cron jobs
-│   ├── ejemplo.php
 │   └── categorias_productos.php
 └── linux/
     ├── crontab                 # Líneas del crontab del servidor
@@ -54,21 +53,28 @@ php setup/install.php
 
 | Tabla | Descripción |
 |---|---|
-| `categorias` | Categorías de productos |
+| `categorias` | Categorías de productos con soporte jerárquico (hasta 3 niveles, campo `parent_id`) |
 | `productos` | Inventario con stock, precios e imágenes |
 | `clientes` | Cuentas de clientes (repo-app) |
-| `pedidos` | Órdenes con estado, distancia y tiempo estimado |
+| `pedidos` | Órdenes con estado, distancia, tiempo estimado, método/estado de pago y fecha de entrega |
 | `pedido_items` | Líneas de cada pedido |
+| `preparaciones` | Órdenes de preparación vinculadas a pedidos |
+| `preparaciones_items` | Líneas de cada preparación |
 | `carritos` | Carritos de compra activos |
 | `carritos_items` | Líneas de cada carrito |
 | `compras` | Órdenes de compra a proveedores |
 | `compra_items` | Líneas de cada compra |
 | `proveedores` | Proveedores |
+| `pagos` | Registro de pagos por pedido (efectivo o Mercado Pago) |
 | `repartidores` | Cuentas de repartidores (repo-delivery) |
+| `push_subscriptions` | Suscripciones Web Push de clientes, repartidores y administradores |
+| `notificaciones` | Historial de notificaciones push enviadas |
+| `cuentas` | Plan de cuentas contable (jerárquico) |
+| `asientos` | Asientos contables |
+| `asientos_detalle` | Líneas de débito/crédito de cada asiento |
 | `usuarios` | Cuentas de administradores (repo-admin) |
 | `mensajes` | Historial de mensajes WhatsApp/email enviados |
 | `eventos` | Log de actividad del sistema |
-| `otp_codigos` | Códigos OTP temporales para login sin contraseña |
 | `configuracion` | Parámetros del sistema (clave → valor) |
 
 ---
@@ -88,7 +94,7 @@ Cada script:
 
 | Endpoint | Frecuencia | Descripción |
 |---|---|---|
-| `/cron/categorias_productos` | cada 5 min | Recalcula `categorias.productos` = conteo de productos con `stock_actual > 0` por categoría |
+| `/cron/categorias_productos` | cada 5 min | Recalcula `categorias.productos` = conteo de productos activos con `stock_actual > 0`, propagando el conteo hacia los niveles padre en la jerarquía de hasta 3 niveles |
 
 ### Agregar un nuevo cron job
 
