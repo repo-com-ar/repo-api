@@ -20,7 +20,8 @@
       "Bash(git -C \"c:/Users/Javier/Documents/Repositorios/repo/repo-media\" log --oneline --after=\"2026-04-20T16:03:39\" --format=\"%h %s\")",
       "Bash(git -C \"c:/Users/Javier/Documents/Repositorios/repo/repo-admin\" log --oneline --after=\"2026-04-23T01:54:25\" --format=\"%h %s\")",
       "Bash(git -C \"c:/Users/Javier/Documents/Repositorios/repo/repo-delivery\" log --oneline --after=\"2026-04-23T01:54:32\" --format=\"%h %s\")",
-      "Bash(git -C \"c:/Users/Javier/Documents/Repositorios/repo/repo-app\" log --oneline --after=\"2026-04-23T01:54:28\" --format=\"%h %s\")"
+      "Bash(git -C \"c:/Users/Javier/Documents/Repositorios/repo/repo-app\" log --oneline --after=\"2026-04-23T01:54:28\" --format=\"%h %s\")",
+      "Bash(find c:\\\\\\\\Users\\\\\\\\Javier\\\\\\\\Documents\\\\\\\\Repositorios\\\\\\\\repo -type f -name \"*.php\")"
     ]
   }
 }

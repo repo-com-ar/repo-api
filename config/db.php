@@ -1,22 +1,8 @@
 <?php
-/**
- * Configuración de conexión a base de datos RDS (MySQL)
- * ¡No subir este archivo al repositorio! Agregar a .gitignore
- */
+require_once __DIR__ . '/secrets.php';
 
-// Zona horaria global: Argentina (GMT-3, sin horario de verano)
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
-define('DB_HOST', 'oxford.databox.net.ar');
-define('DB_PORT', 3306);
-define('DB_NAME', 'repo');
-define('DB_USER', 'admin');
-define('DB_PASS', 'OVfEqi2GdbD0L1zHNC8M7Z5039I3Zgyd');
-define('DB_CHARSET', 'utf8mb4');
-
-/**
- * Obtener conexión PDO
- */
 function getDB(): PDO {
     static $pdo = null;
     if ($pdo === null) {
@@ -26,8 +12,17 @@ function getDB(): PDO {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
         ]);
-        // Forzar zona horaria en la sesión MySQL
         $pdo->exec("SET time_zone = '-03:00'");
     }
     return $pdo;
+}
+
+function getConfigValue(string $clave): string {
+    try {
+        $stmt = getDB()->prepare("SELECT valor FROM configuracion WHERE clave = ? LIMIT 1");
+        $stmt->execute([$clave]);
+        return (string)($stmt->fetchColumn() ?: '');
+    } catch (Throwable $e) {
+        return '';
+    }
 }

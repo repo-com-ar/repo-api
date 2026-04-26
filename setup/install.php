@@ -414,19 +414,38 @@ try {
         'centro_dist_lat'        => '',
         'centro_dist_lng'        => '',
         'precio_km'              => '0',
-        'datarocket_url'         => 'https://api.databox.net.ar',
-        'datarocket_apikey'      => 'z9SACoW1SiHGiyan6JVMwudC73r7Y0An',
-        'datarocket_proyecto'    => 'vigicom',
-        'datarocket_canal_email' => 'databox',
-        'datarocket_canal_wa'    => 'repo-hum',
-        'datarocket_remitente'   => 'Repo Online',
-        'datarocket_remite'      => '1169391123',
+        'datarocket_url'         => '',
+        'datarocket_apikey'      => '',
+        'datarocket_proyecto'    => '',
+        'datarocket_canal_email' => '',
+        'datarocket_canal_wa'    => '',
+        'datarocket_remitente'   => '',
+        'datarocket_remite'      => '',
+        'mp_access_token'        => '',
+        'mp_public_key'          => '',
+        'mp_app_url'             => '',
+        'google_maps_key'        => '',
+        'google_maps_key_admin'  => '',
+        'jwt_secret_admin'       => '',
+        'jwt_secret_delivery'    => '',
+        'jwt_secret_app'         => '',
     ];
     $stmtCfg = $pdo->prepare("INSERT IGNORE INTO configuracion (clave, valor) VALUES (?, ?)");
     foreach ($cfgDefaults as $clave => $valor) {
         $stmtCfg->execute([$clave, $valor]);
     }
     msg("Configuración por defecto insertada (<b>" . count($cfgDefaults) . "</b> claves)", 'ok');
+
+    // Generar JWT secrets aleatorios si están vacíos
+    $stmtJwt = $pdo->prepare("UPDATE configuracion SET valor = ? WHERE clave = ? AND (valor = '' OR valor IS NULL)");
+    foreach (['jwt_secret_admin', 'jwt_secret_delivery', 'jwt_secret_app'] as $jwtKey) {
+        $stmtJwt->execute([bin2hex(random_bytes(32)), $jwtKey]);
+        if ($stmtJwt->rowCount() > 0) {
+            msg("JWT secret generado para <b>$jwtKey</b>", 'ok');
+        } else {
+            msg("JWT secret ya existe para <b>$jwtKey</b>", 'info');
+        }
+    }
 } catch (Exception $e) {
     msg("Error creando tabla configuracion: " . htmlspecialchars($e->getMessage()), 'error');
     $ok = false;
