@@ -197,6 +197,17 @@ try {
     msg("Error migrando pedidos: " . htmlspecialchars($e->getMessage()), 'error');
 }
 
+// Migración: agregar columnas de horario de entrega en pedidos
+try {
+    $hasEntregaFecha = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pedidos' AND COLUMN_NAME = 'entrega_fecha'")->fetchColumn();
+    if (!$hasEntregaFecha) {
+        $pdo->exec("ALTER TABLE pedidos ADD COLUMN entrega_fecha DATE NULL AFTER notas, ADD COLUMN entrega_franja VARCHAR(30) NULL AFTER entrega_fecha");
+        msg("Migración <b>pedidos</b>: columnas entrega_fecha y entrega_franja agregadas", 'ok');
+    }
+} catch (Exception $e) {
+    msg("Error migrando pedidos (entrega): " . htmlspecialchars($e->getMessage()), 'error');
+}
+
 try {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS pedido_items (
@@ -219,15 +230,111 @@ try {
 try {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS eventos (
-            id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            cliente_id  INT UNSIGNED NOT NULL DEFAULT 0,
-            detalle     VARCHAR(500) NOT NULL,
-            created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+            id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            tipo        VARCHAR(40)  NOT NULL DEFAULT 'legado',
+            actor_type  VARCHAR(20)  NOT NULL DEFAULT 'cliente',
+            actor_id    INT UNSIGNED DEFAULT NULL,
+            session_id  VARCHAR(64)  DEFAULT NULL,
+            datos       JSON         NOT NULL DEFAULT (JSON_OBJECT()),
+            ip          VARCHAR(45)  DEFAULT NULL,
+            created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_tipo (tipo),
+            INDEX idx_actor (actor_type, actor_id),
+            INDEX idx_fecha (created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
     msg("Tabla <b>eventos</b> creada/verificada", 'ok');
 } catch (Exception $e) {
     msg("Error creando tabla eventos: " . htmlspecialchars($e->getMessage()), 'error');
+    $ok = false;
+}
+
+// ── Migraciones tabla eventos ──
+// Paso 1: agregar columnas nuevas si aún no existen (tabla vieja sin tipo)
+try {
+    $pdo->query("SELECT tipo FROM eventos LIMIT 1");
+} catch (Exception $e) {
+    $pdo->exec("ALTER TABLE eventos
+        ADD COLUMN tipo       VARCHAR(40)  NOT NULL DEFAULT 'legado'  AFTER id,
+        ADD COLUMN actor_type VARCHAR(20)  NOT NULL DEFAULT 'cliente' AFTER tipo,
+        ADD COLUMN actor_id   INT UNSIGNED DEFAULT NULL               AFTER actor_type,
+        ADD COLUMN session_id VARCHAR(64)  DEFAULT NULL               AFTER actor_id,
+        ADD COLUMN datos      JSON         NOT NULL DEFAULT (JSON_OBJECT()) AFTER session_id,
+        ADD COLUMN ip         VARCHAR(45)  DEFAULT NULL               AFTER datos,
+        ADD INDEX idx_tipo (tipo),
+        ADD INDEX idx_actor (actor_type, actor_id),
+        ADD INDEX idx_fecha (created_at)
+    ");
+    // Rescatar datos históricos antes de eliminar columnas viejas
+    $pdo->exec("
+        UPDATE eventos SET
+            actor_id  = NULLIF(cliente_id, 0),
+            datos     = JSON_OBJECT('detalle', detalle),
+            tipo      = CASE
+                WHEN detalle LIKE 'Agregó al carrito%'  THEN 'carrito_agregar'
+                WHEN detalle LIKE 'Quitó del carrito%'  THEN 'carrito_quitar'
+                WHEN detalle LIKE 'Ingresó a:%'         THEN 'navegacion'
+                ELSE 'legado'
+            END
+        WHERE tipo = 'legado'
+    ");
+    msg("Migración <b>eventos</b>: estructura nueva aplicada y datos históricos rescatados", 'ok');
+}
+
+// Paso 2: eliminar columnas obsoletas cliente_id y detalle si aún existen
+try {
+    $pdo->query("SELECT cliente_id FROM eventos LIMIT 1");
+    $pdo->exec("ALTER TABLE eventos DROP COLUMN cliente_id");
+    msg("Migración <b>eventos</b>: columna obsoleta <b>cliente_id</b> eliminada", 'ok');
+} catch (Exception $e) { /* ya no existe */ }
+
+try {
+    $pdo->query("SELECT detalle FROM eventos LIMIT 1");
+    $pdo->exec("ALTER TABLE eventos DROP COLUMN detalle");
+    msg("Migración <b>eventos</b>: columna obsoleta <b>detalle</b> eliminada", 'ok');
+} catch (Exception $e) { /* ya no existe */ }
+
+// ── Tablas preparaciones / preparaciones_items (despacho con lector de código) ──
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS preparaciones (
+            id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            numero        VARCHAR(20)  NOT NULL UNIQUE,
+            pedido_id     INT UNSIGNED NOT NULL,
+            estado        ENUM('en_curso','completa','parcial','cancelada') NOT NULL DEFAULT 'en_curso',
+            usuario_id    INT UNSIGNED DEFAULT NULL,
+            usuario_nombre VARCHAR(100) DEFAULT '',
+            iniciada_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            finalizada_at TIMESTAMP    NULL DEFAULT NULL,
+            notas         TEXT,
+            created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            updated_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_pedido (pedido_id),
+            INDEX idx_estado (estado),
+            CONSTRAINT fk_prep_pedido FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS preparaciones_items (
+            id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            preparacion_id       INT UNSIGNED NOT NULL,
+            producto_id          INT UNSIGNED DEFAULT NULL,
+            nombre               VARCHAR(160) NOT NULL,
+            ean                  VARCHAR(40)  DEFAULT '',
+            sku                  VARCHAR(40)  DEFAULT '',
+            cantidad_solicitada  INT UNSIGNED NOT NULL DEFAULT 1,
+            cantidad_escaneada   INT UNSIGNED NOT NULL DEFAULT 0,
+            completo             TINYINT(1)   NOT NULL DEFAULT 0,
+            INDEX idx_prep (preparacion_id),
+            INDEX idx_ean (ean),
+            INDEX idx_sku (sku),
+            CONSTRAINT fk_prepi_prep FOREIGN KEY (preparacion_id) REFERENCES preparaciones(id) ON DELETE CASCADE,
+            CONSTRAINT fk_prepi_prod FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    msg("Tablas <b>preparaciones</b> y <b>preparaciones_items</b> creadas/verificadas", 'ok');
+} catch (Exception $e) {
+    msg("Error creando tablas preparaciones: " . htmlspecialchars($e->getMessage()), 'error');
     $ok = false;
 }
 

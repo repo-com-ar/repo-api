@@ -9,7 +9,11 @@
       "Read(//c/Users/Javier/Documents/Repositorios/repo/**)",
       "WebSearch",
       "WebFetch(domain:www.mercadopago.com.ar)",
-      "WebFetch(domain:dev.to)"
+      "WebFetch(domain:dev.to)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(php -r ' *)",
+      "PowerShell($phpPath = \\(Get-Command php -ErrorAction SilentlyContinue\\).Source; if \\(-not $phpPath\\) { $candidates = @\\(\"C:\\\\xampp\\\\php\\\\php.exe\", \"C:\\\\wamp64\\\\bin\\\\php\\\\php8.2\\\\php.exe\", \"C:\\\\laragon\\\\bin\\\\php\\\\php-8.2\\\\php.exe\", \"C:\\\\Program Files\\\\PHP\\\\php.exe\"\\); foreach \\($c in $candidates\\) { if \\(Test-Path $c\\) { $phpPath = $c; break } } }; if \\($phpPath\\) { Write-Output \"PHP: $phpPath\" } else { Write-Output \"PHP no encontrado en PATH ni en rutas comunes\" })"
     ]
   }
 }
